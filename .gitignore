@@ -3,3 +3,4 @@
 *.onnx
 *.bin
 backend/weights/
+__pycache__/
