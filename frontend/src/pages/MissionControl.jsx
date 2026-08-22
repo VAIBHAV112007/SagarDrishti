@@ -7,7 +7,8 @@ import {
   Crosshair, 
   AlertOctagon, 
   Sparkles, 
-  Globe 
+  Globe,
+  AlertTriangle
 } from 'lucide-react';
 import Seabed3DView from '../components/Seabed3DView';
 import InteractiveGISMap from '../components/InteractiveGISMap';
@@ -17,26 +18,48 @@ export default function MissionControl() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [detections, setDetections] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [imageMeta, setImageMeta] = useState({ width: 1, height: 1 });
-  const [activeView, setActiveView] = useState('3d'); // '3d' | 'gis'
+  const [activeView, setActiveView] = useState('3d');
   const [customClasses, setCustomClasses] = useState(
     'ghost fishing net, underwater pipe, shipwreck, submarine, anchor, metal box, diver, fish, tire, debris'
   );
   const [boatCoordinates, setBoatCoordinates] = useState([18.9220, 72.8347]);
-  const API_URL = 'http://127.0.0.1:5000/api/detect';
+  const API_BASE = 'http://127.0.0.1:5000';
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setErrorMsg(null);
     }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setDetections([]);
+    setErrorMsg(null);
   };
 
   const handleRunPipeline = async () => {
     if (!selectedFile) return;
     setLoading(true);
+    setErrorMsg(null);
+    setDetections([]);
 
+    // Step 1: Health check — verify backend is reachable
+    try {
+      const healthRes = await axios.get(`${API_BASE}/api/health`, { timeout: 5000 });
+      // Backend is reachable — proceed (works in cv_only or hybrid mode)
+    } catch (healthErr) {
+      setErrorMsg('Cannot connect to backend server. Make sure the Python server is running: python main.py');
+      setLoading(false);
+      return;
+    }
+
+    // Step 2: Run detection
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('classes', customClasses);
@@ -45,14 +68,29 @@ export default function MissionControl() {
     formData.append('boat_heading', 45.0);
 
     try {
-      const res = await axios.post(API_URL, formData);
-      setDetections(res.data.detections || []);
-      if (res.data.image_meta) {
-        setImageMeta(res.data.image_meta);
+      const res = await axios.post(`${API_BASE}/api/detect`, formData, {
+        timeout: 120000, // 2 minute timeout for heavy inference
+      });
+
+      if (res.data.status === 'error') {
+        setErrorMsg(res.data.message || 'Detection returned an error.');
+      } else {
+        setDetections(res.data.detections || []);
+        if (res.data.image_meta) {
+          setImageMeta(res.data.image_meta);
+        }
       }
     } catch (err) {
       console.error('Inference Error:', err);
-      alert('Could not connect to FastAPI backend. Check that your Python server is running on ' + API_URL);
+      if (err.code === 'ECONNABORTED') {
+        setErrorMsg('Detection timed out. The model may be loading for the first time — please try again.');
+      } else if (err.response) {
+        // Server responded with an error status
+        const serverMsg = err.response.data?.message || err.response.statusText;
+        setErrorMsg(`Server error (${err.response.status}): ${serverMsg}`);
+      } else {
+        setErrorMsg('Could not connect to backend. Ensure the Python server is running on port 5000.');
+      }
     } finally {
       setLoading(false);
     }
@@ -99,13 +137,19 @@ export default function MissionControl() {
           </div>
         </div>
 
-        <button
-          onClick={handleExportGeoJSON}
-          disabled={detections.length === 0}
-          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-800/40 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition shadow"
-        >
-          <Download className="w-4 h-4" /> Export GeoJSON
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 border-r border-slate-700 pr-4">
+            <button className="px-4 py-2 hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-300 transition">Login</button>
+            <button className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold transition shadow-lg shadow-cyan-900/20">Register</button>
+          </div>
+          <button
+            onClick={handleExportGeoJSON}
+            disabled={detections.length === 0}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-800/40 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition shadow"
+          >
+            <Download className="w-4 h-4" /> Export GeoJSON
+          </button>
+        </div>
       </header>
 
       {/* Main Grid Layout */}
@@ -126,6 +170,12 @@ export default function MissionControl() {
           {previewUrl && (
             <div className="relative rounded-lg overflow-hidden border border-slate-800 bg-black inline-block w-full">
               <img src={previewUrl} alt="Sonar Swath Preview" className="w-full h-auto object-contain block opacity-90" />
+              <button 
+                onClick={handleRemoveImage}
+                className="absolute top-2 right-2 bg-red-600/90 hover:bg-red-500 text-white p-1.5 rounded-md transition text-xs font-semibold px-3 shadow-lg z-10"
+              >
+                Remove Image
+              </button>
               {detections.map((d, i) => {
                 const left = (d.bbox[0] / imageMeta.width) * 100;
                 const top = (d.bbox[1] / imageMeta.height) * 100;
@@ -166,11 +216,28 @@ export default function MissionControl() {
             />
           </div>
 
+          {/* Error Banner */}
+          {errorMsg && (
+            <div className="flex items-start gap-2 p-3 bg-red-950/40 border border-red-800/50 rounded-lg text-xs text-red-300">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-200 mb-0.5">Detection Failed</p>
+                <p>{errorMsg}</p>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleRunPipeline}
             disabled={!selectedFile || loading}
-            className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed py-2.5 rounded-lg font-semibold text-sm transition shadow-lg shadow-cyan-900/20 text-white"
+            className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed py-2.5 rounded-lg font-semibold text-sm transition shadow-lg shadow-cyan-900/20 text-white flex items-center justify-center gap-2"
           >
+            {loading && (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
             {loading ? 'Running Open-Vocabulary Detection...' : 'Run Open-Vocabulary Detection'}
           </button>
         </div>

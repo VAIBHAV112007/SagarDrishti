@@ -6,3 +6,4 @@ numpy
 scipy
 ultralytics
 torch
+torchvision
