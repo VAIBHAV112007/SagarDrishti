@@ -21,7 +21,7 @@ export default function Navigation() {
           </div>
           <div>
             <h1 className="text-base font-bold text-white tracking-wide">HydroScan AI</h1>
-            <p className="text-[10px] text-cyan-400 font-mono">SIH 26057 • NAVAL TECH</p>
+            <p className="text-[10px] text-cyan-400 font-mono">NAVAL TECH</p>
           </div>
         </div>
 
@@ -32,10 +32,9 @@ export default function Navigation() {
               key={to}
               to={to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${
-                  isActive
-                    ? 'bg-cyan-600/10 text-cyan-400 border border-cyan-500/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${isActive
+                  ? 'bg-cyan-600/10 text-cyan-400 border border-cyan-500/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`
               }
             >

@@ -19,8 +19,6 @@ app.add_middleware(
 )
 
 # ─── YOLO-World Model (optional enhancement) ─────────────────────
-# Used as a secondary classifier on detected regions — NOT the primary
-# detector, because YOLO-World cannot reliably detect objects in sonar.
 model = None
 model_error = None
 
@@ -34,7 +32,6 @@ except Exception as e:
     print("[INFO] Continuing with sonar CV detector only.")
 
 
-# Prompt map for YOLO-World secondary classification
 CLASS_PROMPT_MAP = {
     "ghost fishing net":  "tangled fishing net underwater",
     "fishing net":        "tangled fishing net underwater",
@@ -51,16 +48,11 @@ CLASS_PROMPT_MAP = {
 
 
 def try_yolo_on_region(rgb_image, bbox, user_classes):
-    """
-    Attempt YOLO-World classification on a cropped region.
-    Returns (class_name, confidence) or None.
-    """
     if model is None:
         return None
 
     try:
         x1, y1, x2, y2 = bbox
-        # Pad the crop slightly for context
         h, w = rgb_image.shape[:2]
         pad = 20
         cx1 = max(0, x1 - pad)
@@ -72,7 +64,6 @@ def try_yolo_on_region(rgb_image, bbox, user_classes):
         if crop.shape[0] < 20 or crop.shape[1] < 20:
             return None
 
-        # Resize crop to at least 224x224 for better recognition
         scale = max(224 / crop.shape[0], 224 / crop.shape[1], 1.0)
         if scale > 1.0:
             crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
@@ -83,7 +74,7 @@ def try_yolo_on_region(rgb_image, bbox, user_classes):
         results = model.predict(crop, conf=0.05, verbose=False, imgsz=640)
         for r in results:
             if len(r.boxes) > 0:
-                best = r.boxes[0]  # Highest confidence
+                best = r.boxes[0]  
                 cls_id = int(best.cls[0])
                 conf = float(best.conf[0])
                 if cls_id < len(user_classes) and conf > 0.1:
@@ -125,7 +116,6 @@ async def detect_anomalies(
         raw_gray, processed_rgb = preprocess_sonar_image(contents)
         height, width, _ = processed_rgb.shape
 
-        # Parse user classes
         user_classes = [c.strip() for c in classes.split(",") if c.strip()]
         if not user_classes:
             return JSONResponse(
@@ -137,19 +127,14 @@ async def detect_anomalies(
         cv_detections = detect_sonar_anomalies(raw_gray, user_classes)
 
         # ─── SECONDARY: YOLO-World refinement on each region ─────
-        # Try to improve classification using YOLO-World on cropped regions
         yolo_enhanced = 0
         for det in cv_detections:
             yolo_result = try_yolo_on_region(processed_rgb, det["bbox"], user_classes)
             if yolo_result:
                 yolo_cls, yolo_conf = yolo_result
-                # Use YOLO classification if it's confident
                 if yolo_conf > det["confidence"] * 0.7:
                     det["classification"] = yolo_cls
-                    # Boost confidence since two systems agree or YOLO is confident
-                    det["confidence"] = min(95.0, round(
-                        det["confidence"] * 0.4 + yolo_conf * 0.6, 1
-                    ))
+                    det["confidence"] = min(95.0, round(det["confidence"] * 0.4 + yolo_conf * 0.6, 1))
                     det["method"] = "hybrid"
                     yolo_enhanced += 1
                 else:
@@ -158,7 +143,6 @@ async def detect_anomalies(
                 det["method"] = "cv_primary"
 
         # ─── FULL-IMAGE YOLO-World pass ──────────────────────────
-        # Run YOLO-World on the full image to catch anything CV missed
         yolo_full_detections = []
         if model is not None:
             try:
@@ -173,7 +157,6 @@ async def detect_anomalies(
                         cls_id = int(box.cls[0])
                         cls_name = user_classes[cls_id] if cls_id < len(user_classes) else f"class_{cls_id}"
 
-                        # Check if this overlaps with existing CV detections
                         overlaps = False
                         for existing in cv_detections:
                             eb = existing["bbox"]
@@ -189,7 +172,8 @@ async def detect_anomalies(
                                 overlaps = True
                                 break
 
-                        if not overlaps and conf > 30:  # Only add high-conf YOLO detections
+                        # FIX: Using dynamic confidence threshold instead of hard 30 limit
+                        if not overlaps and conf > (conf_threshold * 100):  
                             yolo_full_detections.append({
                                 "bbox": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
                                 "classification": cls_name,
@@ -202,9 +186,9 @@ async def detect_anomalies(
         # ─── Merge all detections ─────────────────────────────────
         all_detections = cv_detections + yolo_full_detections
 
-        # ─── Add georeferencing ───────────────────────────────────
+        # ─── Add georeferencing & Acoustic Physics ───────────────────────────────────
         final_detections = []
-        for det in all_detections:
+        for idx, det in enumerate(all_detections):
             x1, y1, x2, y2 = det["bbox"]
             center_x = (x1 + x2) / 2.0
             mid_line = width / 2.0
@@ -216,14 +200,27 @@ async def detect_anomalies(
                 channel = "starboard"
                 slant_range = ((center_x - mid_line) / mid_line) * max_range_meters
 
+            # Acoustic Physics Triangulation
+            towfish_altitude = 10.0
+            target_span_x = abs(x2 - x1)
+            target_span_y = abs(y2 - y1)
+            
+            shadow_len_m = round((target_span_x / mid_line) * (max_range_meters * 0.4), 2)
+            height_m = round((towfish_altitude * shadow_len_m) / (slant_range + shadow_len_m + 1e-4), 2)
+            length_m = round((target_span_y / height) * max_range_meters, 2)
+
             lat, lon = calculate_anomaly_gps(boat_lat, boat_lon, boat_heading, slant_range, channel)
 
             final_detections.append({
+                "id": f"hazard-{idx+1}",
                 "bbox": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
                 "confidence": det["confidence"],
                 "classification": det["classification"].title(),
                 "channel": channel,
                 "slant_range_m": round(slant_range, 2),
+                "estimated_height_m": max(0.5, height_m),
+                "shadow_length_m": shadow_len_m,
+                "estimated_length_m": length_m,
                 "gps": {"lat": lat, "lon": lon},
                 "method": det.get("method", "cv_primary"),
                 "three_pos": [
@@ -233,7 +230,6 @@ async def detect_anomalies(
                 ]
             })
 
-        # Sort by confidence descending
         final_detections.sort(key=lambda d: d["confidence"], reverse=True)
 
         return {
@@ -256,7 +252,6 @@ async def detect_anomalies(
                 "detections": []
             }
         )
-
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=5000, reload=True)

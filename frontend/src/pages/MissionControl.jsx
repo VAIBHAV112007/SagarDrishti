@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { 
   Upload, 
@@ -14,17 +14,26 @@ import {
 import Seabed3DView from '../components/Seabed3DView';
 import InteractiveGISMap from '../components/InteractiveGISMap';
 import { generateSonarPdfReport } from '../utils/generatePdfReport';
+import { MissionContext } from '../context/MissionContext';
 
 export default function MissionControl() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [detections, setDetections] = useState([]);
+  // ─── NEW: Pulling persistent state from Context ───
+  const {
+    selectedFile, setSelectedFile,
+    previewUrl, setPreviewUrl,
+    detections, setDetections,
+    imageMeta, setImageMeta,
+    selectedHazard, setSelectedHazard,
+    boatCoordinates, setBoatCoordinates
+  } = useContext(MissionContext);
+
+  // Purely local UI state
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [imageMeta, setImageMeta] = useState({ width: 1, height: 1 });
   const [activeView, setActiveView] = useState('3d');
-  const [customClasses, setCustomClasses] = useState('');
-  const [boatCoordinates, setBoatCoordinates] = useState([18.9220, 72.8347]);
+  const [customClasses, setCustomClasses] = useState(
+    'ghost fishing net, underwater pipe, shipwreck, submarine, anchor, metal box, diver, fish, tire, debris'
+  );
   const API_BASE = 'http://127.0.0.1:5000';
 
   const defaultClasses = 'ghost fishing net, underwater pipe, shipwreck, submarine, anchor, metal box, diver, fish, tire, debris';
@@ -43,6 +52,7 @@ export default function MissionControl() {
     setPreviewUrl(null);
     setDetections([]);
     setErrorMsg(null);
+    setSelectedHazard(null);
   };
 
   const handleRunPipeline = async () => {
@@ -50,8 +60,8 @@ export default function MissionControl() {
     setLoading(true);
     setErrorMsg(null);
     setDetections([]);
+    setSelectedHazard(null);
 
-    // Health check
     try {
       await axios.get(`${API_BASE}/api/health`, { timeout: 5000 });
     } catch (healthErr) {
@@ -204,7 +214,6 @@ export default function MissionControl() {
         </div>
       </header>
 
-      {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Side: Upload & Controls */}
         <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 flex flex-col gap-4">
@@ -239,12 +248,7 @@ export default function MissionControl() {
                   <div
                     key={i}
                     className="absolute border-2 border-red-500 bg-red-500/20 rounded pointer-events-none transition-all duration-300"
-                    style={{
-                      left: `${left}%`,
-                      top: `${top}%`,
-                      width: `${width}%`,
-                      height: `${height}%`,
-                    }}
+                    style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
                   >
                     <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-sm absolute -top-5 left-0 font-mono whitespace-nowrap shadow font-bold">
                       {d.classification} ({d.confidence}%)
@@ -269,7 +273,6 @@ export default function MissionControl() {
             />
           </div>
 
-          {/* Error Banner */}
           {errorMsg && (
             <div className="flex items-start gap-2 p-3 bg-red-950/40 border border-red-800/50 rounded-lg text-xs text-red-300">
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
@@ -296,9 +299,7 @@ export default function MissionControl() {
           </button>
         </div>
 
-        {/* Right Side: Visual Canvas & Hazard Data Table */}
         <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* View Toggle Tabs */}
           <div className="flex items-center justify-between bg-slate-900/80 p-2 rounded-xl border border-slate-800">
             <div className="flex items-center gap-2">
               <button
@@ -332,18 +333,23 @@ export default function MissionControl() {
           {/* Canvas Component Container */}
           <div className="relative">
             <div className={activeView === '3d' ? 'block' : 'hidden'}>
-              <Seabed3DView detections={detections} />
+              <Seabed3DView
+                detections={detections}
+                selectedHazard={selectedHazard}
+                onSelectHazard={setSelectedHazard}
+              />
             </div>
             <div className={activeView === 'gis' ? 'block' : 'hidden'}>
               <InteractiveGISMap 
                 detections={detections} 
                 boatPos={boatCoordinates} 
-                onLocationSelect={(newCoords) => setBoatCoordinates(newCoords)} 
+                onLocationSelect={(newCoords) => setBoatCoordinates(newCoords)}
+                selectedHazard={selectedHazard}
+                onSelectHazard={setSelectedHazard}
               />
             </div>
           </div>
 
-          {/* Hazard Summary Table */}
           <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
               <AlertOctagon className="w-4 h-4 text-red-400" /> Geotagged Hazards ({detections.length})
@@ -370,9 +376,19 @@ export default function MissionControl() {
                     </tr>
                   ) : (
                     detections.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-800/40 transition">
-                        <td className="p-2.5 font-semibold text-cyan-300">{item.classification}</td>
-                        <td className="p-2.5 font-mono">{item.confidence}%</td>
+                      <tr
+                        key={item.id || idx}
+                        onClick={() => {
+                          setActiveView('3d');
+                          setSelectedHazard(item);
+                        }}
+                        className={`cursor-pointer transition ${selectedHazard && selectedHazard.id === item.id
+                          ? 'bg-cyan-950/60 border-l-2 border-cyan-400'
+                          : 'hover:bg-slate-800/40'
+                          }`}
+                      >
+                        <td className="p-2.5 font-semibold text-cyan-300 pl-4">{item.classification}</td>
+                        <td className="p-2.5 font-mono text-emerald-400">{item.confidence}%</td>
                         <td className="p-2.5 uppercase font-mono">{item.channel}</td>
                         <td className="p-2.5 font-mono">{item.slant_range_m} m</td>
                         <td className="p-2.5 font-mono">{item.gps?.lat?.toFixed(6) || boatCoordinates[0]}</td>

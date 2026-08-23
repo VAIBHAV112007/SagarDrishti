@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { AlertTriangle, Crosshair, Search, MapPin } from 'lucide-react';
+import { AlertTriangle, Search, MapPin } from 'lucide-react';
 
 // Fix default leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -11,20 +11,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// Custom Hazard Marker Icon
-const createHazardIcon = () =>
+const createHazardIcon = (isSelected) =>
   L.divIcon({
     className: 'custom-hazard-pin',
     html: `<div class="relative flex items-center justify-center">
-            <div class="absolute w-6 h-6 bg-red-500/30 rounded-full animate-ping"></div>
-            <div class="w-3.5 h-3.5 bg-red-600 border-2 border-white rounded-full shadow-lg"></div>
+            <div class="absolute w-6 h-6 ${isSelected ? 'bg-cyan-500/40' : 'bg-red-500/30'} rounded-full animate-ping"></div>
+            <div class="w-3.5 h-3.5 ${isSelected ? 'bg-cyan-500' : 'bg-red-600'} border-2 border-white rounded-full shadow-lg"></div>
           </div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
 
-// Map Controller for Click and View Updates
-function MapController({ boatPos, onLocationSelect }) {
+// ─── FIX: Removed aggressive camera locking ───
+function MapController({ boatPos, onLocationSelect, selectedHazard }) {
   const map = useMap();
 
   useMapEvents({
@@ -36,15 +35,16 @@ function MapController({ boatPos, onLocationSelect }) {
   });
 
   React.useEffect(() => {
-    if (boatPos) {
-      map.setView(boatPos, map.getZoom() < 8 ? 14 : map.getZoom());
+    if (selectedHazard) {
+      // Only lock the camera when a hazard is actively selected
+      map.flyTo([selectedHazard.gps.lat, selectedHazard.gps.lon], 18, { animate: true, duration: 1.5 });
     }
-  }, [boatPos, map]);
+  }, [selectedHazard, map]);
 
   return null;
 }
 
-export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 72.8347], onLocationSelect }) {
+export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 72.8347], onLocationSelect, selectedHazard, onSelectHazard }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
 
@@ -75,9 +75,8 @@ export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 
 
   return (
     <div className="relative w-full h-[450px] rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-      {/* Top Search & Telemetry Bar */}
       <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Global Geocoding Search */}
+
         <form onSubmit={handleSearch} className="pointer-events-auto flex items-center bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-700 overflow-hidden shadow-lg">
           <input
             type="text"
@@ -96,7 +95,6 @@ export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 
           </button>
         </form>
 
-        {/* Dynamic Coordinates Indicator */}
         <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-[11px] font-mono text-cyan-400 flex items-center gap-2">
           <MapPin className="w-3.5 h-3.5 text-emerald-400" />
           <span>AUV Lat: {boatPos[0].toFixed(4)}, Lon: {boatPos[1].toFixed(4)}</span>
@@ -109,17 +107,17 @@ export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 
         minZoom={2}
         maxZoom={18}
         scrollWheelZoom={true}
+        wheelPxPerZoomLevel={60} // FIX: Makes scroll zooming faster
+        wheelDebounceTime={40}   // FIX: Makes scroll zooming more responsive
         className="w-full h-full z-0"
       >
-        {/* Global Voyager CartoDB Base Map */}
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
-        <MapController boatPos={boatPos} onLocationSelect={onLocationSelect} />
+        <MapController boatPos={boatPos} onLocationSelect={onLocationSelect} selectedHazard={selectedHazard} />
 
-        {/* Survey Drone / Towfish Base Marker */}
         <Marker position={boatPos}>
           <Popup>
             <div className="text-xs font-sans text-slate-800">
@@ -130,42 +128,54 @@ export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 
           </Popup>
         </Marker>
 
-        {/* Sonar Acoustic Scan Swath Buffer */}
         <Circle
           center={boatPos}
           radius={80}
           pathOptions={{ color: '#06b6d4', fillColor: '#0891b2', fillOpacity: 0.12, dashArray: '4' }}
         />
 
-        {/* Plotted Sonar Anomalies */}
-        {detections.map((d, idx) => (
-          <React.Fragment key={idx}>
-            <Marker position={[d.gps.lat, d.gps.lon]} icon={createHazardIcon()}>
-              <Popup>
-                <div className="text-xs font-sans p-1">
-                  <div className="flex items-center gap-1.5 text-red-600 font-bold mb-1">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{d.classification}</span>
-                  </div>
-                  <div className="space-y-0.5 text-slate-600 font-mono text-[11px]">
-                    <div>Confidence: <strong className="text-slate-800">{d.confidence}%</strong></div>
-                    <div>Slant Range: <strong className="text-slate-800">{d.slant_range_m} m</strong></div>
-                    <div>Channel: <strong className="text-slate-800 uppercase">{d.channel}</strong></div>
-                    <div>Lat: {d.gps.lat.toFixed(6)}</div>
-                    <div>Lon: {d.gps.lon.toFixed(6)}</div>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
+        {detections.map((d, idx) => {
+          const isSelected = selectedHazard && selectedHazard.id === d.id;
 
-            {/* Clearance Avoidance Buffer */}
-            <Circle
-              center={[d.gps.lat, d.gps.lon]}
-              radius={15}
-              pathOptions={{ color: '#ef4444', fillColor: '#dc2626', fillOpacity: 0.25 }}
-            />
-          </React.Fragment>
-        ))}
+          return (
+            <React.Fragment key={d.id || idx}>
+              <Marker
+                position={[d.gps.lat, d.gps.lon]}
+                icon={createHazardIcon(isSelected)}
+                eventHandlers={{
+                  click: () => onSelectHazard && onSelectHazard(d),
+                }}
+              >
+                <Popup>
+                  <div className="text-xs font-sans p-1">
+                    <div className="flex items-center gap-1.5 text-red-600 font-bold mb-1 border-b border-red-100 pb-1">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>{d.classification}</span>
+                    </div>
+                    <div className="space-y-0.5 text-slate-600 font-mono text-[11px]">
+                      <div>Confidence: <strong className="text-slate-800">{d.confidence}%</strong></div>
+                      <div>Slant Range: <strong className="text-slate-800">{d.slant_range_m} m</strong></div>
+                      <div>Height: <strong className="text-slate-800">+{d.estimated_height_m} m</strong></div>
+                      <div>Channel: <strong className="text-slate-800 uppercase">{d.channel}</strong></div>
+                      <div>Lat: {d.gps.lat.toFixed(6)}</div>
+                      <div>Lon: {d.gps.lon.toFixed(6)}</div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+
+              <Circle
+                center={[d.gps.lat, d.gps.lon]}
+                radius={15}
+                pathOptions={{
+                  color: isSelected ? '#06b6d4' : '#ef4444',
+                  fillColor: isSelected ? '#0891b2' : '#dc2626',
+                  fillOpacity: 0.25
+                }}
+              />
+            </React.Fragment>
+          );
+        })}
       </MapContainer>
     </div>
   );

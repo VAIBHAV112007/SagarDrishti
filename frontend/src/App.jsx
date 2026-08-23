@@ -8,6 +8,7 @@ import SonarSimulator from './pages/SonarSimulator';
 import HazardReports from './pages/HazardReports';
 import EdgeTelemetry from './pages/EdgeTelemetry';
 import { Anchor } from 'lucide-react';
+import { MissionProvider } from './context/MissionContext'; // <-- NEW IMPORT
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -15,7 +16,7 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 2500); // Show splash for 2.5 seconds
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -40,20 +41,22 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-        <Navigation />
-        <main className="flex-1 overflow-y-auto p-6">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/mission-control" element={<MissionControl />} />
-            <Route path="/missions" element={<MissionsGIS />} />
-            <Route path="/simulator" element={<SonarSimulator />} />
-            <Route path="/reports" element={<HazardReports />} />
-            <Route path="/edge-monitor" element={<EdgeTelemetry />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <MissionProvider> {/* <-- WRAPPED IN GLOBAL CONTEXT */}
+      <BrowserRouter>
+        <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+          <Navigation />
+          <main className="flex-1 overflow-y-auto p-6">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/mission-control" element={<MissionControl />} />
+              <Route path="/missions" element={<MissionsGIS />} />
+              <Route path="/simulator" element={<SonarSimulator />} />
+              <Route path="/reports" element={<HazardReports />} />
+              <Route path="/edge-monitor" element={<EdgeTelemetry />} />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </MissionProvider>
   );
 }
