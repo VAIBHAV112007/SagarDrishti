@@ -142,27 +142,8 @@ export default function InteractiveGISMap({ detections = [], boatPos = [18.922, 
               <Marker
                 position={[d.gps.lat, d.gps.lon]}
                 icon={createHazardIcon(isSelected)}
-                eventHandlers={{
-                  click: () => onSelectHazard && onSelectHazard(d),
-                }}
-              >
-                <Popup>
-                  <div className="text-xs font-sans p-1">
-                    <div className="flex items-center gap-1.5 text-red-600 font-bold mb-1 border-b border-red-100 pb-1">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>{d.classification}</span>
-                    </div>
-                    <div className="space-y-0.5 text-slate-600 font-mono text-[11px]">
-                      <div>Confidence: <strong className="text-slate-800">{d.confidence}%</strong></div>
-                      <div>Slant Range: <strong className="text-slate-800">{d.slant_range_m} m</strong></div>
-                      <div>Height: <strong className="text-slate-800">+{d.estimated_height_m} m</strong></div>
-                      <div>Channel: <strong className="text-slate-800 uppercase">{d.channel}</strong></div>
-                      <div>Lat: {d.gps.lat.toFixed(6)}</div>
-                      <div>Lon: {d.gps.lon.toFixed(6)}</div>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
+                interactive={false}
+              />
 
               <Circle
                 center={[d.gps.lat, d.gps.lon]}
