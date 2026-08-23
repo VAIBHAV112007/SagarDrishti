@@ -1,9 +1,9 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Float, Environment } from '@react-three/drei';
+import { OrbitControls, Text, Float } from '@react-three/drei';
 import * as THREE from 'three';
 
-// ─── Simplex-like noise for terrain generation ──────────────────────
+// Simplex-like noise for terrain generation
 function seededRandom(seed) {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -41,31 +41,26 @@ function fbmNoise(x, z, octaves = 5) {
   return value / maxValue;
 }
 
-
-// ─── Bathymetric Terrain with Depth Gradient ────────────────────────
 function BathymetryTerrain() {
   const meshRef = useRef();
   const segments = 96;
   const size = 50;
 
-  const { geometry, depthColors } = useMemo(() => {
+  const { geometry } = useMemo(() => {
     const geo = new THREE.PlaneGeometry(size, size, segments, segments);
     const positions = geo.attributes.position.array;
     const colors = new Float32Array(positions.length);
 
     let minY = Infinity, maxY = -Infinity;
 
-    // Generate terrain heights using fractal noise
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
-      const z = positions[i + 1]; // PlaneGeometry uses x,y before rotation
+      const z = positions[i + 1];
 
-      // Multi-octave noise for realistic seafloor
       const baseHeight = fbmNoise(x * 0.06 + 10, z * 0.06 + 10, 5) * 4.5;
       const ridges = Math.abs(fbmNoise(x * 0.12, z * 0.12, 3)) * 2.0;
       const detail = fbmNoise(x * 0.25 + 5, z * 0.25 + 5, 2) * 0.8;
 
-      // Center channel (towfish path) should be a valley
       const distFromCenter = Math.abs(x) / (size / 2);
       const channelDepth = Math.exp(-distFromCenter * distFromCenter * 8) * -1.5;
 
@@ -76,34 +71,28 @@ function BathymetryTerrain() {
       if (height > maxY) maxY = height;
     }
 
-    // Assign depth-gradient colors
     const range = maxY - minY || 1;
     for (let i = 0; i < positions.length; i += 3) {
       const height = positions[i + 2];
-      const t = (height - minY) / range; // 0 = deepest, 1 = shallowest
+      const t = (height - minY) / range;
 
-      // Deep navy → teal → cyan → sand gradient
       let r, g, b;
       if (t < 0.25) {
-        // Deep: dark navy
         const s = t / 0.25;
         r = 0.02 + s * 0.03;
         g = 0.04 + s * 0.08;
         b = 0.15 + s * 0.15;
       } else if (t < 0.5) {
-        // Mid-deep: teal
         const s = (t - 0.25) / 0.25;
         r = 0.05 + s * 0.02;
         g = 0.12 + s * 0.18;
         b = 0.30 + s * 0.15;
       } else if (t < 0.75) {
-        // Mid-shallow: cyan-green
         const s = (t - 0.5) / 0.25;
         r = 0.07 + s * 0.15;
         g = 0.30 + s * 0.25;
         b = 0.45 - s * 0.05;
       } else {
-        // Shallow: sandy cyan
         const s = (t - 0.75) / 0.25;
         r = 0.22 + s * 0.25;
         g = 0.55 + s * 0.15;
@@ -118,7 +107,7 @@ function BathymetryTerrain() {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
 
-    return { geometry: geo, depthColors: colors };
+    return { geometry: geo };
   }, []);
 
   return (
@@ -133,18 +122,15 @@ function BathymetryTerrain() {
   );
 }
 
-
-// ─── Towfish Path (AUV Trajectory) ──────────────────────────────────
 function TowfishPath() {
-  const pathRef = useRef();
   const pathPoints = useMemo(() => {
     const pts = [];
     const count = 200;
     for (let i = 0; i < count; i++) {
-      const t = (i / count) * 2 - 1; // -1 to 1
+      const t = (i / count) * 2 - 1;
       const z = t * 24;
       const x = Math.sin(t * Math.PI * 1.5) * 1.5;
-      const y = 1.5 + Math.sin(t * Math.PI * 3) * 0.3; // Slight vertical undulation
+      const y = 1.5 + Math.sin(t * Math.PI * 3) * 0.3;
       pts.push(new THREE.Vector3(x, y, z));
     }
     return pts;
@@ -164,12 +150,10 @@ function TowfishPath() {
 
   return (
     <group>
-      {/* Dashed trajectory line */}
       <line geometry={lineGeometry}>
         <lineDashedMaterial color="#22d3ee" dashSize={0.5} gapSize={0.3} linewidth={1} />
       </line>
 
-      {/* Waypoint markers along the path */}
       {pathPoints.filter((_, i) => i % 25 === 0).map((pt, i) => (
         <mesh key={`wp-${i}`} position={[pt.x, pt.y, pt.z]}>
           <sphereGeometry args={[0.12, 8, 8]} />
@@ -180,16 +164,13 @@ function TowfishPath() {
   );
 }
 
-
-// ─── Animated AUV/Towfish Model ────────────────────────────────────
 function AnimatedTowfish() {
   const groupRef = useRef();
-  const trailRef = useRef();
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
-    const progress = ((t * 0.08) % 1); // 0 to 1 looping
-    const mapped = progress * 2 - 1; // -1 to 1
+    const progress = ((t * 0.08) % 1);
+    const mapped = progress * 2 - 1;
 
     const z = mapped * 24;
     const x = Math.sin(mapped * Math.PI * 1.5) * 1.5;
@@ -197,7 +178,6 @@ function AnimatedTowfish() {
 
     if (groupRef.current) {
       groupRef.current.position.set(x, y, z);
-      // Point in travel direction
       const nextZ = (mapped + 0.01) * 24;
       const nextX = Math.sin((mapped + 0.01) * Math.PI * 1.5) * 1.5;
       groupRef.current.lookAt(nextX, y, nextZ);
@@ -206,14 +186,11 @@ function AnimatedTowfish() {
 
   return (
     <group ref={groupRef}>
-      {/* AUV Body */}
       <mesh rotation={[0, 0, 0]}>
         <capsuleGeometry args={[0.25, 1.2, 8, 16]} />
         <meshStandardMaterial color="#f59e0b" emissive="#d97706" emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
       </mesh>
-      {/* Sonar emission indicator */}
       <pointLight color="#22d3ee" intensity={3} distance={6} />
-      {/* Downward sonar cone */}
       <mesh position={[0, -0.6, 0]} rotation={[0, 0, 0]}>
         <coneGeometry args={[1.5, 2.5, 16, 1, true]} />
         <meshStandardMaterial color="#06b6d4" transparent opacity={0.08} side={THREE.DoubleSide} />
@@ -222,14 +199,11 @@ function AnimatedTowfish() {
   );
 }
 
-
-// ─── Volumetric Hazard Marker ───────────────────────────────────────
 function HazardMarker({ position, label, confidence, classification }) {
   const groupRef = useRef();
   const innerRef = useRef();
   const ringRef = useRef();
 
-  // Color coding by threat type
   const markerColor = useMemo(() => {
     const cls = classification?.toLowerCase() || '';
     if (cls.includes('net') || cls.includes('fishing')) return '#ef4444';
@@ -258,7 +232,6 @@ function HazardMarker({ position, label, confidence, classification }) {
   return (
     <Float speed={2} rotationIntensity={0.1} floatIntensity={0.6} floatingRange={[-0.15, 0.15]}>
       <group ref={groupRef} position={position}>
-        {/* Vertical line to ground */}
         <line>
           <bufferGeometry>
             <bufferAttribute
@@ -271,35 +244,24 @@ function HazardMarker({ position, label, confidence, classification }) {
           <lineBasicMaterial color={markerColor} transparent opacity={0.3} />
         </line>
 
-        {/* Inner rotating octahedron */}
         <mesh ref={innerRef}>
           <octahedronGeometry args={[0.45, 0]} />
           <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={0.9} wireframe />
         </mesh>
 
-        {/* Outer ring */}
         <mesh ref={ringRef}>
           <torusGeometry args={[0.7, 0.04, 8, 32]} />
           <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={0.6} />
         </mesh>
 
-        {/* Glow sphere */}
-        <mesh>
-          <sphereGeometry args={[0.9, 16, 16]} />
-          <meshStandardMaterial color={markerColor} transparent opacity={0.06} />
-        </mesh>
-
-        {/* Point light for glow */}
         <pointLight color={markerColor} intensity={2} distance={4} />
 
-        {/* Label */}
         <Text
           position={[0, 1.4, 0]}
           fontSize={0.35}
           color="#ffffff"
           anchorX="center"
           anchorY="middle"
-          font={undefined}
           outlineWidth={0.03}
           outlineColor="#000000"
         >
@@ -311,7 +273,6 @@ function HazardMarker({ position, label, confidence, classification }) {
           color={markerColor}
           anchorX="center"
           anchorY="middle"
-          font={undefined}
         >
           {`${confidence}%`}
         </Text>
@@ -320,8 +281,6 @@ function HazardMarker({ position, label, confidence, classification }) {
   );
 }
 
-
-// ─── Depth Scale Legend (3D bars) ──────────────────────────────────
 function DepthLegend() {
   const colors = ['#0a1628', '#0c2d4a', '#0e7490', '#22d3ee', '#a3e635'];
   const labels = ['-25m', '-18m', '-12m', '-6m', '0m'];
@@ -346,8 +305,6 @@ function DepthLegend() {
   );
 }
 
-
-// ─── Underwater Particles ──────────────────────────────────────────
 function UnderwaterParticles() {
   const particlesRef = useRef();
   const count = 300;
@@ -384,8 +341,6 @@ function UnderwaterParticles() {
   );
 }
 
-
-// ─── Sonar Scan Lines (waterfall visualization) ────────────────────
 function SonarScanLines() {
   const groupRef = useRef();
 
@@ -414,12 +369,9 @@ function SonarScanLines() {
   );
 }
 
-
-// ─── Main Component ────────────────────────────────────────────────
-export default function Seabed3DView({ detections }) {
+export default function Seabed3DView({ detections = [] }) {
   return (
     <div className="w-full h-[500px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 relative">
-      {/* HUD Overlay */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
         <div className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-cyan-400">
           3D Seafloor Bathymetric Reconstruction
@@ -431,38 +383,32 @@ export default function Seabed3DView({ detections }) {
         </div>
       </div>
 
-      {/* Controls hint */}
       <div className="absolute bottom-3 right-3 z-10 bg-slate-900/70 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-[10px] font-mono text-slate-500">
         Drag to rotate • Scroll to zoom • Right-drag to pan
       </div>
 
-      <Canvas camera={{ position: [18, 16, 22], fov: 42 }} shadows>
-        {/* Lighting */}
+      <Canvas 
+        gl={{ preserveDrawingBuffer: true, antialias: true }}
+        onCreated={({ gl }) => {
+          gl.domElement.id = 'seabed-3d-canvas';
+        }}
+        camera={{ position: [18, 16, 22], fov: 42 }} 
+        shadows
+      >
         <ambientLight intensity={0.3} />
-        <directionalLight position={[15, 25, 20]} intensity={1.0} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+        <directionalLight position={[15, 25, 20]} intensity={1.0} castShadow />
         <pointLight position={[0, 8, 0]} color="#0ea5e9" intensity={3} distance={30} />
         <pointLight position={[-15, 5, -10]} color="#0284c7" intensity={1.5} distance={25} />
 
-        {/* Fog for underwater atmosphere */}
         <fog attach="fog" args={['#020617', 25, 65]} />
 
-        {/* Terrain */}
         <BathymetryTerrain />
-
-        {/* AUV/Towfish path */}
         <TowfishPath />
         <AnimatedTowfish />
-
-        {/* Sonar scan visualization */}
         <SonarScanLines />
-
-        {/* Underwater particles */}
         <UnderwaterParticles />
-
-        {/* Depth legend */}
         <DepthLegend />
 
-        {/* Hazard markers from detections */}
         {detections.map((item, idx) => (
           <HazardMarker
             key={idx}
@@ -477,7 +423,6 @@ export default function Seabed3DView({ detections }) {
           />
         ))}
 
-        {/* Controls */}
         <OrbitControls
           makeDefault
           maxPolarAngle={Math.PI / 2.05}
