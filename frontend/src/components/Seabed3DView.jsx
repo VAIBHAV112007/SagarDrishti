@@ -436,7 +436,9 @@ export default function Seabed3DView({ detections, selectedHazard, onSelectHazar
             <span className="text-slate-400 flex items-center gap-1">
               <Navigation className="w-3.5 h-3.5 text-cyan-400" /> GPS
             </span>
-            <span className="text-white">{selectedHazard.gps.lat.toFixed(5)}, {selectedHazard.gps.lon.toFixed(5)}</span>
+            <span className="text-white">
+              {selectedHazard.gps?.lat ? Number(selectedHazard.gps.lat).toFixed(5) : "N/A"}, {selectedHazard.gps?.lon ? Number(selectedHazard.gps.lon).toFixed(5) : "N/A"}
+            </span>
           </div>
         </div>
       )}

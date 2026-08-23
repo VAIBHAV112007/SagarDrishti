@@ -35,9 +35,9 @@ function MapController({ boatPos, onLocationSelect, selectedHazard }) {
   });
 
   React.useEffect(() => {
-    if (selectedHazard) {
+    if (selectedHazard && selectedHazard.gps?.lat && selectedHazard.gps?.lon) {
       // Only lock the camera when a hazard is actively selected
-      map.flyTo([selectedHazard.gps.lat, selectedHazard.gps.lon], 18, { animate: true, duration: 1.5 });
+      map.flyTo([Number(selectedHazard.gps.lat), Number(selectedHazard.gps.lon)], 18, { animate: true, duration: 1.5 });
     }
   }, [selectedHazard, map]);
 
