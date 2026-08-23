@@ -40,7 +40,7 @@ export function generateSonarPdfReport({
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(16);
-    doc.text('HYDROSCAN AI | MISSION DOSSIER', 14, 15);
+    doc.text('SagarDhristi | MISSION DOSSIER', 14, 15);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -174,10 +174,10 @@ export function generateSonarPdfReport({
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('CONFIDENTIAL - HYDROSCAN AI MARITIME HAZARD ANALYSIS DOSSIER', 14, footerY);
+    doc.text('CONFIDENTIAL - SagarDhristi MARITIME HAZARD ANALYSIS DOSSIER', 14, footerY);
     doc.text('VERIFIED FOR NAVAL ROV RECOVERY & ECDIS COMPLIANCE', pageWidth - 14, footerY, { align: 'right' });
 
-    doc.save(`HYDROSCAN_REPORT_${Date.now()}.pdf`);
+    doc.save(`SagarDhristi_REPORT_${Date.now()}.pdf`);
   } catch (err) {
     console.error('PDF Generation Failed:', err);
     alert('Failed to generate PDF. Check browser console for details.');

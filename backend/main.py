@@ -9,7 +9,7 @@ from preprocessing import preprocess_sonar_image
 from georeference import calculate_anomaly_gps
 from sonar_detector import detect_sonar_anomalies
 
-app = FastAPI(title="HydroScan AI — Hybrid Sonar Detection API")
+app = FastAPI(title="SagarDhristi — Hybrid Sonar Detection API")
 
 app.add_middleware(
     CORSMiddleware,

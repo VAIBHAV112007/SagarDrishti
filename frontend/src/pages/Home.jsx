@@ -88,7 +88,7 @@ export default function Home() {
           </h1>
 
           <p className="text-slate-400 text-base sm:text-lg leading-relaxed">
-            Turbid, zero-visibility waters blind underwater cameras. HydroScan AI translates raw acoustic side-scan sonar echograms into actionable 3D bathymetry, nautical charts, and executive PDF inspection reports using open-vocabulary zero-shot edge AI.
+            Turbid, zero-visibility waters blind underwater cameras. SagarDhristi translates raw acoustic side-scan sonar echograms into actionable 3D bathymetry, nautical charts, and executive PDF inspection reports using open-vocabulary zero-shot edge AI.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -267,7 +267,7 @@ export default function Home() {
 
                   <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl font-mono text-[11px] text-slate-300 flex flex-col gap-1.5">
                     <div className="flex justify-between items-center text-slate-400 text-[10px]">
-                      <span>Document: HYDROSCAN-REP-0941.pdf</span>
+                      <span>Document: SAGARDHRISTI-REP-0941.pdf</span>
                       <span className="text-emerald-400 font-bold">Verified</span>
                     </div>
                     <p className="text-cyan-400 font-bold">Location: 43.1360° N, 87.7280° W</p>

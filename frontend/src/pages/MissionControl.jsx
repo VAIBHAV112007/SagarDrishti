@@ -378,13 +378,9 @@ export default function MissionControl() {
                     detections.map((item, idx) => (
                       <tr
                         key={item.id || idx}
-                        onClick={() => {
-                          setActiveView('3d');
-                          setSelectedHazard(item);
-                        }}
-                        className={`cursor-pointer transition ${selectedHazard && selectedHazard.id === item.id
+                        className={`transition ${selectedHazard && selectedHazard.id === item.id
                           ? 'bg-cyan-950/60 border-l-2 border-cyan-400'
-                          : 'hover:bg-slate-800/40'
+                          : ''
                           }`}
                       >
                         <td className="p-2.5 font-semibold text-cyan-300 pl-4">{item.classification}</td>
