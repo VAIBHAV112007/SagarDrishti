@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import { 
   Upload, 
@@ -14,26 +14,18 @@ import {
 import Seabed3DView from '../components/Seabed3DView';
 import InteractiveGISMap from '../components/InteractiveGISMap';
 import { generateSonarPdfReport } from '../utils/generatePdfReport';
-import { MissionContext } from '../context/MissionContext';
 
 export default function MissionControl() {
-  // ─── NEW: Pulling persistent state from Context ───
-  const {
-    selectedFile, setSelectedFile,
-    previewUrl, setPreviewUrl,
-    detections, setDetections,
-    imageMeta, setImageMeta,
-    selectedHazard, setSelectedHazard,
-    boatCoordinates, setBoatCoordinates
-  } = useContext(MissionContext);
-
-  // Purely local UI state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [detections, setDetections] = useState([]);
+  const [selectedHazard, setSelectedHazard] = useState(null);
+  const [imageMeta, setImageMeta] = useState({ width: 1, height: 1 });
+  const [boatCoordinates, setBoatCoordinates] = useState([18.9220, 72.8347]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [activeView, setActiveView] = useState('3d');
-  const [customClasses, setCustomClasses] = useState(
-    'ghost fishing net, underwater pipe, shipwreck, submarine, anchor, metal box, diver, fish, tire, debris'
-  );
+  const [customClasses, setCustomClasses] = useState('');
   const API_BASE = 'http://127.0.0.1:5000';
 
   const defaultClasses = 'ghost fishing net, underwater pipe, shipwreck, submarine, anchor, metal box, diver, fish, tire, debris';
@@ -85,7 +77,17 @@ export default function MissionControl() {
       if (res.data.status === 'error') {
         setErrorMsg(res.data.message || 'Detection returned an error.');
       } else {
-        setDetections(res.data.detections || []);
+        const rawDetections = res.data.detections || [];
+        const parsedDetections = rawDetections.map((d, index) => ({
+          ...d,
+          id: d.id || `hazard-${index}`,
+          three_pos: d.three_pos || [
+            ((d.bbox?.[0] + d.bbox?.[2]) / 2 - 320) / 15 || (index * 4 - 8),
+            2.5,
+            ((d.bbox?.[1] + d.bbox?.[3]) / 2 - 240) / 15 || (index * 4 - 8)
+          ]
+        }));
+        setDetections(parsedDetections);
         if (res.data.image_meta) {
           setImageMeta(res.data.image_meta);
         }
@@ -239,18 +241,26 @@ export default function MissionControl() {
                 Remove Image
               </button>
               {detections.map((d, i) => {
-                const left = (d.bbox[0] / imageMeta.width) * 100;
-                const top = (d.bbox[1] / imageMeta.height) * 100;
-                const width = ((d.bbox[2] - d.bbox[0]) / imageMeta.width) * 100;
-                const height = ((d.bbox[3] - d.bbox[1]) / imageMeta.height) * 100;
+                const isSelected = Boolean(selectedHazard && (selectedHazard.id === d.id || selectedHazard === d));
+                const left = (d.bbox?.[0] / imageMeta.width) * 100 || 0;
+                const top = (d.bbox?.[1] / imageMeta.height) * 100 || 0;
+                const width = ((d.bbox?.[2] - d.bbox?.[0]) / imageMeta.width) * 100 || 20;
+                const height = ((d.bbox?.[3] - d.bbox?.[1]) / imageMeta.height) * 100 || 20;
 
                 return (
                   <div
-                    key={i}
-                    className="absolute border-2 border-red-500 bg-red-500/20 rounded pointer-events-none transition-all duration-300"
+                    key={d.id || i}
+                    onClick={() => setSelectedHazard(isSelected ? null : d)}
+                    className={`absolute border-2 rounded transition-all duration-300 cursor-pointer ${
+                      isSelected 
+                        ? 'border-cyan-400 bg-cyan-400/30 z-20 shadow-lg shadow-cyan-500/50 scale-[1.02]' 
+                        : 'border-red-500 bg-red-500/20'
+                    }`}
                     style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
                   >
-                    <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-sm absolute -top-5 left-0 font-mono whitespace-nowrap shadow font-bold">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-sm absolute -top-5 left-0 font-mono whitespace-nowrap shadow font-bold ${
+                      isSelected ? 'bg-cyan-500 text-slate-950' : 'bg-red-600 text-white'
+                    }`}>
                       {d.classification} ({d.confidence}%)
                     </span>
                   </div>
@@ -259,7 +269,7 @@ export default function MissionControl() {
             </div>
           )}
 
-          {/* Dynamic Prompt Input with Placeholder Only */}
+          {/* Dynamic Prompt Input */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Target Detection Classes:
@@ -330,7 +340,7 @@ export default function MissionControl() {
             </span>
           </div>
 
-          {/* Canvas Component Container */}
+          {/* Persistent Render Container */}
           <div className="relative">
             <div className={activeView === '3d' ? 'block' : 'hidden'}>
               <Seabed3DView
@@ -375,22 +385,27 @@ export default function MissionControl() {
                       </td>
                     </tr>
                   ) : (
-                    detections.map((item, idx) => (
-                      <tr
-                        key={item.id || idx}
-                        className={`transition ${selectedHazard && selectedHazard.id === item.id
-                          ? 'bg-cyan-950/60 border-l-2 border-cyan-400'
-                          : ''
+                    detections.map((item, idx) => {
+                      const isSelected = Boolean(selectedHazard && (selectedHazard.id === item.id || selectedHazard === item));
+                      return (
+                        <tr
+                          key={item.id || idx}
+                          onClick={() => setSelectedHazard(isSelected ? null : item)}
+                          className={`transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-cyan-950/80 border-l-4 border-cyan-400 text-white'
+                              : 'hover:bg-slate-800/40'
                           }`}
-                      >
-                        <td className="p-2.5 font-semibold text-cyan-300 pl-4">{item.classification}</td>
-                        <td className="p-2.5 font-mono text-emerald-400">{item.confidence}%</td>
-                        <td className="p-2.5 uppercase font-mono">{item.channel}</td>
-                        <td className="p-2.5 font-mono">{item.slant_range_m} m</td>
-                        <td className="p-2.5 font-mono">{item.gps?.lat?.toFixed(6) || boatCoordinates[0]}</td>
-                        <td className="p-2.5 font-mono">{item.gps?.lon?.toFixed(6) || boatCoordinates[1]}</td>
-                      </tr>
-                    ))
+                        >
+                          <td className="p-2.5 font-semibold text-cyan-300 pl-4">{item.classification}</td>
+                          <td className="p-2.5 font-mono text-emerald-400">{item.confidence}%</td>
+                          <td className="p-2.5 uppercase font-mono">{item.channel || 'Swath'}</td>
+                          <td className="p-2.5 font-mono">{item.slant_range_m || 15} m</td>
+                          <td className="p-2.5 font-mono">{item.gps?.lat ? Number(item.gps.lat).toFixed(6) : boatCoordinates[0]}</td>
+                          <td className="p-2.5 font-mono">{item.gps?.lon ? Number(item.gps.lon).toFixed(6) : boatCoordinates[1]}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

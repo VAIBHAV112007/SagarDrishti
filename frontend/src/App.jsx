@@ -29,7 +29,7 @@ export default function App() {
           </div>
           <div className="text-center">
             <h1 className="text-4xl font-black text-white tracking-widest mb-3">
-              Sagar<span className="text-cyan-400">Dhristi</span>
+              Sagar<span className="text-cyan-400">Drishti</span>
             </h1>
             <p className="text-cyan-500 font-mono text-xs tracking-[0.2em] uppercase">
               Initializing Acoustic Systems...
