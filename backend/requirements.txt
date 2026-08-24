@@ -1,9 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi
 uvicorn
 python-multipart
-opencv-python
+opencv-python-headless
 numpy
 scipy
 ultralytics
+git+https://github.com/ultralytics/CLIP.git
 torch
 torchvision
