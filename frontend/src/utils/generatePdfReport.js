@@ -7,7 +7,8 @@ export function generateSonarPdfReport({
   coordinates = { lat: 43.1360, lon: -87.7280 },
   detections = [],
   telemetry = {},
-  canvasImage = null // Base64 snapshot of the 3D Bathymetry canvas
+  canvasImage = null, // Base64 snapshot of the 3D Bathymetry canvas
+  inputImage = null // Base64 snapshot of the 2D Sonar Survey
 } = {}) {
   try {
     const doc = new jsPDF({
@@ -74,12 +75,35 @@ export function generateSonarPdfReport({
       },
     });
 
-    // 3. 3D Bathymetry Digital Elevation Render
+    // 3. 2D Sonar Analysis Render
     let currentY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 75) + 6;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('2. 3D Digital Elevation Seabed Model', 14, currentY);
+    doc.text('2. Original 2D Sonar Analysis', 14, currentY);
+
+    currentY += 4;
+    if (inputImage) {
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(14, currentY, pageWidth - 28, 52);
+      doc.addImage(inputImage, 'JPEG', 14.5, currentY + 0.5, pageWidth - 29, 51);
+      currentY += 56;
+    } else {
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(14, currentY, pageWidth - 28, 20, 2, 2, 'FD');
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Original 2D Sonar Scan Snapshot not available.', 20, currentY + 12);
+      currentY += 26;
+    }
+
+    // 4. 3D Bathymetry Digital Elevation Render
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('3. 3D Digital Elevation Seabed Model', 14, currentY);
 
     currentY += 4;
     if (canvasImage) {
@@ -96,6 +120,12 @@ export function generateSonarPdfReport({
       doc.setTextColor(148, 163, 184);
       doc.text('3D Bathymetry snapshot not available during compilation.', 20, currentY + 12);
       currentY += 26;
+    }
+
+    // Check for page overflow before Distribution Graph
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
     }
 
     // 4. Target Confidence Distribution Graph
@@ -133,11 +163,11 @@ export function generateSonarPdfReport({
     });
     currentY += 34;
 
-    // 5. Georeferenced Hazard Log Table
+    // 6. Georeferenced Hazard Log Table
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('4. Georeferenced Hazard Log', 14, currentY);
+    doc.text('5. Georeferenced Hazard Log', 14, currentY);
 
     const tableRows = safeDetections.map((d, index) => [
       `#${index + 1}`,

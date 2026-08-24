@@ -1,40 +1,40 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Activity, Compass, PlayCircle, FileText, Cpu, Anchor } from 'lucide-react';
+import { LayoutDashboard, Compass, Radio, FileText, Activity, Anchor, Server } from 'lucide-react';
 
 export default function Navigation() {
   const navItems = [
-    { to: '/', label: 'Live Mission Control', icon: Activity },
-    { to: '/missions', label: 'GIS & Fleet Logs', icon: Compass },
-    { to: '/simulator', label: 'Sonar Sweep Simulator', icon: PlayCircle },
-    { to: '/reports', label: 'Hazard & Audit Reports', icon: FileText },
-    { to: '/edge-monitor', label: 'Edge Drone Telemetry', icon: Cpu },
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/missions', label: 'Bathymetry', icon: Compass },
+    { to: '/reports', label: 'Inspection Reports', icon: FileText },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-4 shrink-0">
-      <div className="flex flex-col gap-6">
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0 shadow-xl z-20">
+      <div className="flex flex-col">
         {/* Brand Header */}
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-cyan-950 border border-cyan-700 rounded-lg text-cyan-400">
-            <Anchor className="w-5 h-5" />
+        <div className="flex items-center gap-3 px-6 py-8 border-b border-slate-800/50">
+          <div className="p-2 bg-blue-600 rounded-lg text-white shadow-md shadow-blue-500/20">
+            <Anchor className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-wide">SagarDrishti</h1>
-            <p className="text-[10px] text-cyan-400 font-mono">NAVAL TECH</p>
+            <h1 className="text-lg font-bold text-white tracking-tight leading-tight">SagarDrishti</h1>
+            <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">NAV-TECH</p>
           </div>
         </div>
 
         {/* Links */}
-        <nav className="flex flex-col gap-1.5">
+        <nav className="flex flex-col gap-1.5 px-4 pt-6">
+          <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Main Menu</p>
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${isActive
-                  ? 'bg-cyan-600/10 text-cyan-400 border border-cyan-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`
               }
             >
@@ -46,14 +46,32 @@ export default function Navigation() {
       </div>
 
       {/* System Status Pill */}
-      <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-xs flex flex-col gap-1.5 font-mono">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-400">Model Runtime:</span>
-          <span className="text-emerald-400">ONNX-INT8</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-400">Acoustic Feed:</span>
-          <span className="text-cyan-400">Active (50 kHz)</span>
+      <div className="p-6 border-t border-slate-800/50">
+        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">System Status</p>
+          <div className="flex flex-col gap-2.5 text-[11px] font-medium">
+            <div className="flex items-center justify-between group cursor-default">
+              <div className="flex items-center gap-2 text-slate-400 group-hover:text-slate-300 transition-colors">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                Sonar Engine
+              </div>
+              <span className="text-emerald-400">Online</span>
+            </div>
+            <div className="flex items-center justify-between group cursor-default">
+              <div className="flex items-center gap-2 text-slate-400 group-hover:text-slate-300 transition-colors">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                AI Inference
+              </div>
+              <span className="text-emerald-400">Ready</span>
+            </div>
+            <div className="flex items-center justify-between group cursor-default">
+              <div className="flex items-center gap-2 text-slate-400 group-hover:text-slate-300 transition-colors">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                FastAPI
+              </div>
+              <span className="text-blue-400">Connected</span>
+            </div>
+          </div>
         </div>
       </div>
     </aside>

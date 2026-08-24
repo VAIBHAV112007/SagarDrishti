@@ -1,8 +1,8 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Float } from '@react-three/drei';
 import * as THREE from 'three';
-import { ShieldAlert, X, Navigation } from 'lucide-react';
+import { ShieldAlert, X, Navigation, Radar, AlignCenter, Droplets, Target } from 'lucide-react';
 
 function seededRandom(seed) {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
@@ -121,15 +121,8 @@ function TowfishPath() {
   return (
     <group>
       <line geometry={lineGeometry}>
-        <lineDashedMaterial color="#22d3ee" dashSize={0.5} gapSize={0.3} linewidth={1} />
+        <lineDashedMaterial color="#ffffff" transparent opacity={0.3} dashSize={0.5} gapSize={0.3} linewidth={1} />
       </line>
-
-      {pathPoints.filter((_, i) => i % 25 === 0).map((pt, i) => (
-        <mesh key={`wp-${i}`} position={[pt.x, pt.y, pt.z]}>
-          <sphereGeometry args={[0.12, 8, 8]} />
-          <meshStandardMaterial color="#06b6d4" emissive="#0891b2" emissiveIntensity={0.6} />
-        </mesh>
-      ))}
     </group>
   );
 }
@@ -158,36 +151,27 @@ function AnimatedTowfish() {
     <group ref={groupRef}>
       <mesh rotation={[0, 0, 0]}>
         <capsuleGeometry args={[0.25, 1.2, 8, 16]} />
-        <meshStandardMaterial color="#f59e0b" emissive="#d97706" emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial color="#3b82f6" emissive="#1d4ed8" emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
       </mesh>
-      <pointLight color="#22d3ee" intensity={3} distance={6} />
-      <mesh position={[0, -0.6, 0]} rotation={[0, 0, 0]}>
-        <coneGeometry args={[1.5, 2.5, 16, 1, true]} />
-        <meshStandardMaterial color="#06b6d4" transparent opacity={0.08} side={THREE.DoubleSide} />
-      </mesh>
+      <pointLight color="#60a5fa" intensity={3} distance={6} />
     </group>
   );
 }
 
-function HazardMarker({ item, isSelected, onSelect }) {
+function HazardMarker({ item, isSelected, onClickHazard }) {
   const innerRef = useRef();
   const ringRef = useRef();
   const position = item?.three_pos || [0, 0, 0];
 
+  const highPriorityKeywords = ['debris', 'submarine', 'tyre', 'tyres', 'metal', 'metals', 'anchor', 'anchors', 'shipwreck', 'shipwrecks'];
+  
   const baseColor = useMemo(() => {
     const cls = item?.classification?.toLowerCase() || '';
-    if (cls.includes('net') || cls.includes('fishing')) return '#ef4444';
-    if (cls.includes('wreck') || cls.includes('ship')) return '#f97316';
-    if (cls.includes('submarine')) return '#a855f7';
-    if (cls.includes('pipe') || cls.includes('cable')) return '#3b82f6';
-    if (cls.includes('anchor') || cls.includes('metal') || cls.includes('box')) return '#eab308';
-    if (cls.includes('diver')) return '#22c55e';
-    if (cls.includes('tire') || cls.includes('debris')) return '#f43f5e';
-    if (cls.includes('fish')) return '#14b8a6';
-    return '#ef4444';
+    if (highPriorityKeywords.some(keyword => cls.includes(keyword))) return '#ef4444'; // Light Red for Priority
+    return '#38bdf8'; // Light Blue for regular objects like fish, plants
   }, [item?.classification]);
 
-  const markerColor = isSelected ? '#22d3ee' : baseColor;
+  const markerColor = isSelected ? '#ffffff' : baseColor;
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
@@ -207,12 +191,11 @@ function HazardMarker({ item, isSelected, onSelect }) {
         position={position}
         onClick={(e) => { 
           e.stopPropagation(); 
-          if (onSelect) onSelect(item); 
+          onClickHazard(item);
         }}
         onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { document.body.style.cursor = 'auto'; }}
       >
-        {/* Line to ground */}
         <line>
           <bufferGeometry>
             <bufferAttribute attach="attributes-position" count={2} array={new Float32Array([0, 0, 0, 0, -position[1] - 1.5, 0])} itemSize={3} />
@@ -220,7 +203,6 @@ function HazardMarker({ item, isSelected, onSelect }) {
           <lineBasicMaterial color={markerColor} transparent opacity={isSelected ? 0.9 : 0.3} />
         </line>
 
-        {/* Stable Static Geometries with dynamic mesh scales */}
         <mesh ref={innerRef} scale={isSelected ? [1.3, 1.3, 1.3] : [1, 1, 1]}>
           <octahedronGeometry args={[0.45, 0]} />
           <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={isSelected ? 1.6 : 0.9} wireframe />
@@ -231,45 +213,11 @@ function HazardMarker({ item, isSelected, onSelect }) {
           <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={0.8} />
         </mesh>
 
-        <mesh scale={isSelected ? [1.25, 1.25, 1.25] : [1, 1, 1]}>
-          <sphereGeometry args={[0.9, 16, 16]} />
-          <meshStandardMaterial color={markerColor} transparent opacity={isSelected ? 0.18 : 0.06} />
-        </mesh>
-
-        <pointLight color={markerColor} intensity={isSelected ? 4.5 : 2} distance={4} />
-
         <Text position={[0, 1.4, 0]} fontSize={0.35} color="#ffffff" anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#000000">
           {item?.classification || 'Hazard'}
         </Text>
-        <Text position={[0, 1.0, 0]} fontSize={0.22} color={markerColor} anchorX="center" anchorY="middle">
-          {`${item?.confidence || 0}%`}
-        </Text>
       </group>
     </Float>
-  );
-}
-
-function DepthLegend() {
-  const colors = ['#0a1628', '#0c2d4a', '#0e7490', '#22d3ee', '#a3e635'];
-  const labels = ['-25m', '-18m', '-12m', '-6m', '0m'];
-
-  return (
-    <group position={[-23, 0, -20]}>
-      {colors.map((col, i) => (
-        <group key={i} position={[0, i * 1.2, 0]}>
-          <mesh>
-            <boxGeometry args={[1.2, 0.8, 0.3]} />
-            <meshStandardMaterial color={col} />
-          </mesh>
-          <Text position={[1.4, 0, 0]} fontSize={0.3} color="#94a3b8" anchorX="left">
-            {labels[i]}
-          </Text>
-        </group>
-      ))}
-      <Text position={[0.6, -0.8, 0]} fontSize={0.25} color="#64748b" anchorX="center">
-        Depth Scale
-      </Text>
-    </group>
   );
 }
 
@@ -304,83 +252,40 @@ function UnderwaterParticles() {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
       </bufferGeometry>
-      <pointsMaterial color="#38bdf8" size={0.06} transparent opacity={0.4} sizeAttenuation />
+      <pointsMaterial color="#ffffff" size={0.06} transparent opacity={0.2} sizeAttenuation />
     </points>
   );
 }
 
-function SonarScanLines() {
-  const groupRef = useRef();
+export default function Seabed3DView({ detections = [] }) {
+  const [activeHazard, setActiveHazard] = useState(null);
 
-  useFrame((state) => {
-    if (groupRef.current) {
-      const t = state.clock.getElapsedTime();
-      groupRef.current.children.forEach((child, i) => {
-        const phase = (t * 0.5 + i * 0.4) % 6;
-        child.material.opacity = phase < 3 ? Math.max(0, 0.15 - phase * 0.05) : 0;
-      });
-    }
-  });
-
+  // Extract panel out of R3F Canvas bounds to prevent Crash
   return (
-    <group ref={groupRef}>
-      {Array.from({ length: 8 }).map((_, i) => {
-        const z = -20 + i * 5;
-        return (
-          <mesh key={i} position={[0, 0.5, z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[40, 0.15]} />
-            <meshStandardMaterial color="#22d3ee" transparent opacity={0.1} emissive="#22d3ee" emissiveIntensity={0.5} side={THREE.DoubleSide} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-export default function Seabed3DView({ detections = [], selectedHazard = null, onSelectHazard = () => {} }) {
-  return (
-    <div className="w-full h-[500px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 relative">
-      <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 pointer-events-none">
-        <div className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-cyan-400">
-          3D Seafloor Bathymetric Reconstruction
-        </div>
-        <div className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-[10px] font-mono text-slate-400">
-          Hazards: <span className="text-cyan-400 font-bold">{detections?.length || 0}</span> • Click markers to inspect
-        </div>
-      </div>
-
-      <div className="absolute bottom-3 right-3 z-10 bg-slate-900/70 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-[10px] font-mono text-slate-500 pointer-events-none">
-        Drag to rotate • Scroll to zoom • Right-drag to pan
-      </div>
-
+    <div className="w-full h-full relative" style={{ minHeight: '100%' }}>
       <Canvas
         gl={{ preserveDrawingBuffer: true, antialias: true }}
-        onCreated={({ gl }) => {
-          gl.domElement.id = 'seabed-3d-canvas';
-        }}
         camera={{ position: [18, 16, 22], fov: 42 }}
         shadows
-        onPointerMissed={() => onSelectHazard(null)}
+        onPointerMissed={() => setActiveHazard(null)} 
+        // Handles clicks anywhere on empty space in canvas
       >
         <ambientLight intensity={0.3} />
         <directionalLight position={[15, 25, 20]} intensity={1.0} castShadow shadow-mapSize={[1024, 1024]} />
-        <pointLight position={[0, 8, 0]} color="#0ea5e9" intensity={3} distance={30} />
-        <pointLight position={[-15, 5, -10]} color="#0284c7" intensity={1.5} distance={25} />
-        <fog attach="fog" args={['#020617', 25, 65]} />
+        <pointLight position={[0, 8, 0]} color="#ffffff" intensity={1} distance={30} />
+        <fog attach="fog" args={['#0f172a', 25, 65]} />
 
         <BathymetryTerrain />
         <TowfishPath />
         <AnimatedTowfish />
-        <SonarScanLines />
         <UnderwaterParticles />
-        <DepthLegend />
 
         {Array.isArray(detections) && detections.map((item, idx) => (
           <HazardMarker
             key={item?.id || idx}
             item={item}
-            isSelected={Boolean(selectedHazard && (selectedHazard.id === item.id || selectedHazard === item))}
-            onSelect={(hazard) => onSelectHazard(hazard)}
+            isSelected={Boolean(activeHazard && activeHazard.id === item.id)}
+            onClickHazard={(hazard) => setActiveHazard(hazard)}
           />
         ))}
 
@@ -391,57 +296,71 @@ export default function Seabed3DView({ detections = [], selectedHazard = null, o
           maxDistance={50}
           enableDamping
           dampingFactor={0.05}
-          autoRotate={!selectedHazard}
+          autoRotate={!activeHazard}
           autoRotateSpeed={0.3}
         />
       </Canvas>
 
-      {/* Floating Property Inspection Overlay */}
-      {selectedHazard && (
-        <div className="absolute bottom-4 right-4 z-20 w-80 bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border border-cyan-500/50 shadow-2xl shadow-cyan-950/50 font-sans">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-cyan-400" />
-              <span className="text-sm font-bold text-white">{selectedHazard.classification || 'Hazard'}</span>
-            </div>
+      {/* DETACHED DEEP INFO OVERLAY - Fully HTML/CSS based */}
+      {activeHazard && (
+        <div className="absolute top-4 right-4 z-50 w-72 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden flex flex-col animate-slide-up">
+          
+          <div className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center text-white">
+            <h3 className="text-sm font-bold tracking-wide uppercase flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-emerald-400" />
+              Target Profiler
+            </h3>
             <button 
-              type="button"
-              onClick={() => onSelectHazard(null)} 
-              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition cursor-pointer"
+              onClick={() => setActiveHazard(null)}
+              className="text-slate-400 hover:text-white transition"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 mt-3 text-xs">
-            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Acoustic Confidence</span>
-              <span className="text-emerald-400 font-bold font-mono">{selectedHazard.confidence || 0}%</span>
+          <div className="p-4 flex flex-col gap-5 bg-slate-50 relative">
+            <div className="flex justify-between items-center bg-white border border-slate-200 shadow-sm p-3 rounded-lg">
+              <span className="text-sm font-bold text-slate-800">{activeHazard.classification || 'Unknown Object'}</span>
+              <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                {activeHazard.confidence || 90}% Conf
+              </span>
             </div>
-            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Seafloor Elevation</span>
-              <span className="text-cyan-400 font-bold font-mono">+{selectedHazard.estimated_height_m || 1.5} m</span>
-            </div>
-            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Shadow Span</span>
-              <span className="text-amber-400 font-bold font-mono">{selectedHazard.shadow_length_m || 2.4} m</span>
-            </div>
-            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Slant Range</span>
-              <span className="text-slate-200 font-bold font-mono">{selectedHazard.slant_range_m || 15}m ({selectedHazard.channel || 'Swath'})</span>
-            </div>
-          </div>
 
-          <div className="mt-3 p-2 bg-slate-950/70 rounded-lg border border-slate-800 flex items-center justify-between text-[11px] font-mono">
-            <span className="text-slate-400 flex items-center gap-1">
-              <Navigation className="w-3.5 h-3.5 text-cyan-400" /> GPS
-            </span>
-            <span className="text-white">
-              {selectedHazard.gps?.lat ? Number(selectedHazard.gps.lat).toFixed(5) : "43.13600"}, {selectedHazard.gps?.lon ? Number(selectedHazard.gps.lon).toFixed(5) : "-87.72800"}
-            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1.5"><AlignCenter className="w-3.5 h-3.5 text-slate-400" /> Slant Range</span>
+                <span className="text-sm font-bold text-slate-700">{activeHazard.slant_range_m || 24.5}m</span>
+              </div>
+              <div className="flex flex-col gap-1 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5 text-slate-400" /> Channel</span>
+                <span className="text-sm font-bold text-slate-700 capitalize">{activeHazard.channel || 'Port'}</span>
+              </div>
+              <div className="flex flex-col gap-1 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1.5"><Radar className="w-3.5 h-3.5 text-slate-400" /> Profiling Height</span>
+                <span className="text-sm font-bold text-slate-700">{activeHazard.estimated_height_m || 1.8}m</span>
+              </div>
+              <div className="flex flex-col gap-1 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-slate-400" /> Acoustic Shadow</span>
+                <span className="text-sm font-bold text-slate-700">{activeHazard.shadow_length_m || 3.1}m</span>
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-slate-200 my-1"></div>
+
+            <div className="flex justify-between items-center text-xs font-medium text-slate-500 bg-white border border-slate-200 p-2.5 rounded-lg shadow-sm">
+              <span className="flex items-center gap-1.5"><Navigation className="w-3.5 h-3.5 text-blue-500" /> Lat / Lon</span>
+              <span className="text-slate-800 font-bold">
+                {activeHazard.gps?.lat ? Number(activeHazard.gps.lat).toFixed(5) : "43.13600"}, {activeHazard.gps?.lon ? Number(activeHazard.gps.lon).toFixed(5) : "-87.72800"}
+              </span>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Default Overlay Header */}
+      <div className="absolute top-4 left-4 z-40 bg-slate-900/90 text-white rounded-lg px-4 py-2 text-xs font-medium border border-slate-700 shadow-md pointer-events-none">
+        Target Markers Identified: {detections?.length || 0}
+      </div>
     </div>
   );
 }
