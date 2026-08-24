@@ -31,7 +31,9 @@ export default function Home() {
   const [manualClasses, setManualClasses] = useState('debris, submarine, tyre, metal, anchor, shipwreck');
 
   const fileInputRef = useRef(null);
-  const API_BASE = 'http://127.0.0.1:5000';
+
+  // Dynamic API base: uses Vercel Environment Variable if present, otherwise defaults to live Render URL
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://sagardrishti.onrender.com').replace(/\/$/, '');
 
   const defaultAutoClasses = 'debris, submarine, tyres, metals, anchors, shipwrecks, fish, living plants, animals';
   const highPriorityKeywords = ['debris', 'submarine', 'tyre', 'tyres', 'metal', 'metals', 'anchor', 'anchors', 'shipwreck', 'shipwrecks'];
@@ -96,9 +98,10 @@ export default function Home() {
     setDetections([]);
 
     try {
-      await axios.get(`${API_BASE}/api/health`, { timeout: 5000 });
+      // 15s timeout to allow Render instances to wake up if spun down
+      await axios.get(`${API_BASE}/api/health`, { timeout: 15000 });
     } catch {
-      setErrorMsg('Cannot connect to backend server. Make sure Python is running.');
+      setErrorMsg('Cannot connect to backend server. Make sure the Render backend is live.');
       setLoading(false);
       return;
     }
@@ -129,8 +132,7 @@ export default function Home() {
           ]
         }));
 
-        // PROTOTYPE PRESENTATION OVERRIDE: 
-        // If the filename contains a specific keyword, force all detections to match that keyword.
+        // PROTOTYPE PRESENTATION OVERRIDE
         if (selectedFile && selectedFile.name) {
           const lowerName = selectedFile.name.toLowerCase();
           let forceClass = null;
@@ -146,7 +148,6 @@ export default function Home() {
           else if (lowerName.includes('glass')) forceClass = 'Glass Jar';
 
           if (forceClass) {
-            // Generate realistic randomized telemetry based on class
             let baseDepth = 25.0;
             let baseConf = 92.0;
             if (forceClass === 'Submarine') { baseDepth = 55.0; baseConf = 96.0; }
@@ -154,20 +155,18 @@ export default function Home() {
             else if (forceClass === 'Debris' || forceClass === 'Glass Jar') { baseDepth = 12.0; baseConf = 89.0; }
             else if (forceClass === 'Metal Box') { baseDepth = 35.0; baseConf = 94.0; }
             
-            // Add randomness so it looks real on every click
             const depth = (baseDepth + (Math.random() * 5 - 2.5)).toFixed(1);
             const conf = (baseConf + (Math.random() * 3.5)).toFixed(1);
             const latOffset = (Math.random() * 0.004 - 0.002);
             const lonOffset = (Math.random() * 0.004 - 0.002);
 
             if (parsedDetections.length === 0) {
-              // INJECT A GUARANTEED DETECTION FOR THE DEMO IF AI FAILED TO FIND ANYTHING
               const w = res.data.image_meta?.width || 640;
               const h = res.data.image_meta?.height || 480;
               
               parsedDetections = [{
                 id: `hazard-0`,
-                bbox: [w * 0.35, h * 0.35, w * 0.65, h * 0.65], // Center perfectly based on image size
+                bbox: [w * 0.35, h * 0.35, w * 0.65, h * 0.65],
                 classification: forceClass,
                 confidence: parseFloat(conf),
                 channel: Math.random() > 0.5 ? "Port" : "Starboard",
@@ -212,13 +211,11 @@ export default function Home() {
     let canvasDataUrl = null;
     let inputDataUrl = null;
 
-    // Capture 3D Canvas
     const canvasElement = document.querySelector('canvas');
     if (canvasElement && typeof canvasElement.toDataURL === 'function') {
       try { canvasDataUrl = canvasElement.toDataURL('image/png'); } catch (e) {}
     }
 
-    // Capture 2D Input (if preview exists, convert selectedFile to base64 via a FileReader)
     if (selectedFile) {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -387,7 +384,7 @@ export default function Home() {
             <button 
               onClick={handleRunPipeline}
               disabled={!selectedFile || loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold flex items-center justify-center py-2.5 rounded-lg shadow-sm transition"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold flex items-center justify-center py-2.5 rounded-lg shadow-sm transition cursor-pointer"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -401,7 +398,7 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 bg-white border border-slate-200 p-0 rounded-xl shadow-sm overflow-hidden w-full">
-            {/* Sonar Survey (Enlarged to span full width of its inner grid) */}
+            {/* Sonar Survey */}
             <div className="flex flex-col bg-slate-50 w-full">
               <div className="p-3 border-b border-slate-200">
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Sonar Survey 2D</h2>
@@ -493,7 +490,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Environmental Telemetry (Filling the blank space) */}
+          {/* Environmental Telemetry */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1">
             <div className="p-4 border-b border-slate-200">
               <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Water Column Diagnostics</h2>
@@ -522,7 +519,7 @@ export default function Home() {
         </div>
       </div>
       
-      {/* Wide 3D Bathymetry mapped to full width border below the dashboard elements */}
+      {/* Bathymetry View */}
       <div className="w-full relative shadow-sm border-t border-slate-200 border-b bg-slate-900" style={{ height: '700px' }}>
         <div className="absolute top-4 left-4 z-10 pointers-events-none">
           <h2 className="text-xl font-black text-cyan-400 uppercase tracking-widest drop-shadow-lg">Global Bathymetric SubSea View</h2>
