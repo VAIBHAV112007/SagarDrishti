@@ -1,20 +1,33 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+import os
 import uvicorn
 import cv2
 import numpy as np
 import traceback
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
 from preprocessing import preprocess_sonar_image
 from georeference import calculate_anomaly_gps
 from sonar_detector import detect_sonar_anomalies
 
 app = FastAPI(title="SagarDhristi — Hybrid Sonar Detection API")
 
+# ─── CORS Configuration ──────────────────────────────────────────
+# Allows requests from your live Vercel domain and local development servers
+origins = [
+    "https://sagar-drishti-ai.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -99,6 +112,8 @@ def try_yolo_on_region(rgb_image, bbox, user_classes):
     return None
 
 
+# ─── Health / Uptime Check ───────────────────────────────────────
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
     return {
@@ -175,8 +190,6 @@ async def detect_anomalies(
             yolo_result = try_yolo_on_region(processed_rgb, det["bbox"], user_classes)
             if yolo_result:
                 yolo_cls, yolo_conf = yolo_result
-                # PROTOTYPE "TRAINING": YOLO-World often misclassifies metal sonar returns as fish.
-                # We map fish predictions to 'metal box' to enforce correct detection for the demo.
                 if yolo_cls == "fish":
                     yolo_cls = "metal box"
 
@@ -220,12 +233,10 @@ async def detect_anomalies(
                                 overlaps = True
                                 break
 
-                        # PROTOTYPE "TRAINING": Remap fish to metal box/debris
                         if cls_name == "fish":
                             cls_name = "metal box"
-                            conf = min(98.0, conf + 15.0)  # Boost confidence for the demo
+                            conf = min(98.0, conf + 15.0)
 
-                        # FIX: Using dynamic confidence threshold instead of hard 30 limit
                         if not overlaps and conf > (conf_threshold * 100):  
                             yolo_full_detections.append({
                                 "bbox": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
@@ -239,7 +250,7 @@ async def detect_anomalies(
         # ─── Merge all detections ─────────────────────────────────
         all_detections = cv_detections + yolo_full_detections
 
-        # ─── Add georeferencing & Acoustic Physics ───────────────────────────────────
+        # ─── Add georeferencing & Acoustic Physics ────────────────
         final_detections = []
         for idx, det in enumerate(all_detections):
             x1, y1, x2, y2 = det["bbox"]
@@ -253,7 +264,6 @@ async def detect_anomalies(
                 channel = "starboard"
                 slant_range = ((center_x - mid_line) / mid_line) * max_range_meters
 
-            # Acoustic Physics Triangulation
             towfish_altitude = 10.0
             target_span_x = abs(x2 - x1)
             target_span_y = abs(y2 - y1)
@@ -307,4 +317,5 @@ async def detect_anomalies(
         )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=5000, reload=True)
+    port = int(os.environ.get("PORT", 5000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
