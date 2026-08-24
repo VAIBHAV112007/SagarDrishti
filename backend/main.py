@@ -14,17 +14,27 @@ from sonar_detector import detect_sonar_anomalies
 
 app = FastAPI(title="SagarDhristi — Hybrid Sonar Detection API")
 
-# ─── CORS Configuration ──────────────────────────────────────────
-# Permissive wildcard setup to prevent preflight & browser blocking
+# Define fallback origins for local development
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Read the live Vercel URL from Render's environment variable
+frontend_env = os.getenv("FRONTEND_URL")
+if frontend_env:
+    allowed_origins.append(frontend_env.rstrip("/"))
+
+# Keep this middleware block active
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
-
 # ─── YOLO-World Model (optional enhancement) ─────────────────────
 model = None
 model_error = None
