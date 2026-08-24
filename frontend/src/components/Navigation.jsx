@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Compass, Radio, FileText, Activity, Anchor, Server } from 'lucide-react';
+import { LayoutDashboard, Compass, Radio, FileText, Activity, Server } from 'lucide-react';
 
 export default function Navigation() {
   const navItems = [
@@ -14,8 +14,8 @@ export default function Navigation() {
       <div className="flex flex-col">
         {/* Brand Header */}
         <div className="flex items-center gap-3 px-6 py-8 border-b border-slate-800/50">
-          <div className="p-2 bg-blue-600 rounded-lg text-white shadow-md shadow-blue-500/20">
-            <Anchor className="w-6 h-6" />
+          <div className="p-1 bg-white rounded-lg shadow-md flex items-center justify-center">
+            <img src="/logo.png" alt="SagarDrishti Logo" className="w-12 h-12 object-contain mix-blend-multiply" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-white tracking-tight leading-tight">SagarDrishti</h1>

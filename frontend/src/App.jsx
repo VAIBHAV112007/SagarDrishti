@@ -4,37 +4,81 @@ import Navigation from './components/Navigation';
 import Home from './pages/Home';
 import MissionsGIS from './pages/MissionsGIS';
 import HazardReports from './pages/HazardReports';
-import { Anchor } from 'lucide-react';
+import Auth from './pages/Auth';
 import { MissionProvider } from './context/MissionContext'; // <-- NEW IMPORT
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Start exit animation after 2 seconds
+    const exitTimer = setTimeout(() => {
+      setIsExiting(true);
+    }, 2000);
+
+    // Remove splash screen entirely after animation completes
+    const endTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 2500);
-    return () => clearTimeout(timer);
+    }, 3000); // Wait full 1s for transition
+
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(endTimer);
+    };
   }, []);
 
   if (showSplash) {
     return (
-      <div className="flex flex-col h-screen w-screen items-center justify-center bg-slate-50 font-sans">
-        <div className="flex flex-col items-center gap-6 animate-fade-in">
-          <div className="p-6 bg-white border border-slate-200 rounded-2xl text-blue-600 shadow-xl shadow-slate-200/50">
-            <Anchor className="w-16 h-16" />
+      <div className="flex flex-col h-screen w-screen items-center justify-center bg-slate-900 font-sans relative overflow-hidden">
+        {/* Background aesthetic glow */}
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none transition-opacity duration-700 ${isExiting ? 'opacity-0' : 'opacity-100'}`}></div>
+        
+        <div className="flex flex-col items-center gap-8 z-10 relative">
+          
+          {/* LOGO with cinematic scale-up transition */}
+          <div 
+            className={`p-4 bg-white shadow-[0_0_40px_rgba(37,99,235,0.3)] flex items-center justify-center transition-all duration-1000 ease-in-out origin-center
+              ${isExiting ? 'rounded-none blur-sm' : 'rounded-3xl animate-pulse'}`}
+            style={{ 
+              transform: isExiting ? 'scale(50)' : 'scale(1)', 
+              opacity: isExiting ? 0 : 1 
+            }}
+          >
+            <img src="/logo.png" alt="SagarDrishti Logo" className="w-40 h-40 object-contain mix-blend-multiply" />
           </div>
-          <div className="text-center">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-              Sagar<span className="text-blue-600">Drishti</span>
+
+          {/* TEXT fades out early */}
+          <div className={`text-center flex flex-col items-center transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}>
+            <h1 className="text-4xl font-black text-white tracking-tight mb-3 drop-shadow-md">
+              Sagar<span className="text-blue-400">Drishti</span>
             </h1>
-            <p className="text-slate-500 font-medium text-sm tracking-wide">
+            <p className="text-slate-400 font-medium text-sm tracking-widest uppercase mb-8">
               Initializing Autonomous Systems...
             </p>
+            
+            {/* Loading Bar */}
+            <div className="w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
+              <div className="absolute top-0 left-0 h-full bg-blue-500 w-full animate-[loading_2.0s_ease-in-out_1]"></div>
+            </div>
           </div>
         </div>
+        
+        {/* Inline style for the loading animation */}
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+          }
+        `}} />
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <Auth onAuthSuccess={() => setIsAuthenticated(true)} />;
   }
 
   return (

@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Float } from '@react-three/drei';
+import { OrbitControls, Text, Float, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { ShieldAlert, X, Navigation, Radar, AlignCenter, Droplets, Target } from 'lucide-react';
 
@@ -39,7 +39,7 @@ function BathymetryTerrain() {
   const segments = 96;
   const size = 50;
 
-  const { geometry } = useMemo(() => {
+  const { geometry, basePositions } = useMemo(() => {
     const geo = new THREE.PlaneGeometry(size, size, segments, segments);
     const positions = geo.attributes.position.array;
     const colors = new Float32Array(positions.length);
@@ -84,8 +84,24 @@ function BathymetryTerrain() {
 
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    return { geometry: geo };
+    return { geometry: geo, basePositions: new Float32Array(positions) };
   }, []);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const positions = geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = basePositions[i];
+      const z = basePositions[i + 1];
+      // Create a very gentle, slow-moving underwater current effect
+      const wave = Math.sin(t * 0.5 + x * 0.15 + z * 0.15) * 0.15 + 
+                   Math.cos(t * 0.3 + x * 0.05 - z * 0.05) * 0.15;
+      positions[i + 2] = basePositions[i + 2] + wave;
+    }
+    geometry.attributes.position.needsUpdate = true;
+    // We intentionally skip recomputing normals here to keep performance extremely high (60fps). 
+    // The wave is subtle enough that static lighting looks perfectly fine.
+  });
 
   return (
     <mesh ref={meshRef} geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
@@ -257,6 +273,48 @@ function UnderwaterParticles() {
   );
 }
 
+function DepthScale() {
+  return (
+    <group position={[-20, 1.0, 0]}>
+      {/* Draw a vertical depth pole */}
+      <mesh position={[0, -2, 0]}>
+         <cylinderGeometry args={[0.04, 0.04, 12, 8]} />
+         <meshBasicMaterial color="#0ea5e9" transparent opacity={0.3} fog={false} />
+      </mesh>
+      
+      {/* Draw depth markers */}
+      {[
+        {d: 15, lbl: "+15m", color: "#ffffff"}, 
+        {d: 0, lbl: "0m (Surface)", color: "#7dd3fc"}, 
+        {d: -15, lbl: "-15m", color: "#0ea5e9"}, 
+        {d: -30, lbl: "-30m", color: "#2563eb"}, 
+        {d: -45, lbl: "-45m", color: "#312e81"} 
+      ].map((mark, i) => (
+        <group key={i} position={[0, mark.d * 0.08, 0]}>
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.4, 0.03, 0.03]} />
+            <meshBasicMaterial color={mark.color} fog={false} />
+          </mesh>
+          <Billboard>
+            <Text
+              position={[0.6, 0, 0]}
+              color={mark.color}
+              fontSize={0.5}
+              anchorX="left"
+              anchorY="middle"
+              outlineWidth={0.02}
+              outlineColor="#000000"
+            >
+              {mark.lbl}
+              <meshBasicMaterial attach="material" fog={false} />
+            </Text>
+          </Billboard>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 export default function Seabed3DView({ detections = [] }) {
   const [activeHazard, setActiveHazard] = useState(null);
 
@@ -279,6 +337,7 @@ export default function Seabed3DView({ detections = [] }) {
         <TowfishPath />
         <AnimatedTowfish />
         <UnderwaterParticles />
+        <DepthScale />
 
         {Array.isArray(detections) && detections.map((item, idx) => (
           <HazardMarker
@@ -358,8 +417,9 @@ export default function Seabed3DView({ detections = [] }) {
       )}
 
       {/* Default Overlay Header */}
-      <div className="absolute top-4 left-4 z-40 bg-slate-900/90 text-white rounded-lg px-4 py-2 text-xs font-medium border border-slate-700 shadow-md pointer-events-none">
-        Target Markers Identified: {detections?.length || 0}
+      <div className="absolute bottom-6 left-6 z-40 bg-slate-900/90 text-white rounded-lg px-4 py-2 text-xs font-bold tracking-wide border border-slate-700 shadow-md pointer-events-none flex items-center gap-2">
+        <Target className="w-4 h-4 text-cyan-400" />
+        TARGET MARKERS ACTIVE: <span className="text-cyan-400">{detections?.length || 0}</span>
       </div>
     </div>
   );
