@@ -18,6 +18,7 @@ app = FastAPI(title="SagarDhristi — Hybrid Sonar Detection API")
 allowed_origins = [
     "https://sagar-drishti-ai.vercel.app",
     "https://sagar-drishti-ai.netlify.app"
+    "https://sagardrishti-frontend.onrender.com"
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
